@@ -1,0 +1,30 @@
+Node
+ - Head
+ - Tail
+
+Master
+Client
+
+First we'll run master
+then we run a node (node will have master's address)
+	- it will inform master
+		- Master will send it the address of predecessor (current tail)
+		- Master will update its head or tail address accordingly
+	- It will inform its predecessor (in case of adding at tail)
+	- Get consistent with the predecessor/successor (optional, but necesary if we allow nodes to join while the chain is active)
+	- If it gets any request, it responds (to client) (read/write)
+		- if the req is write, then it updates the key-value pairs, then send it to its successor
+			- if no successor, it send back acknowledgement
+	- If it receives any acknowledgement, mark key-value as commit and send it to predecessor
+Master will ping nodes in chain every x seconds to detect failure
+
+
+
+Discussion:
+	- New node to be added: Head or Tail
+		- It will be blind node
+		- It can parallelly update and respond to req at Head
+		- It has to update first then respond to requests at tail
+	- Joining process:
+		- Master informs current tail about successor
+		- New tail itself informs current tail

@@ -28,3 +28,12 @@ Discussion:
 	- Joining process:
 		- Master informs current tail about successor
 		- New tail itself informs current tail
+
+According to Paper:
+Query: only read
+Update: set and delete
+Hist: Key value store
+Pending: requests received by any server, but not yet processed by tail
+'pending' is also refered as 'sent' in some parts
+
+- They are replicating master using paxos

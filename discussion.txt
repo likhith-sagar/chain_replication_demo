@@ -18,7 +18,9 @@ then we run a node (node will have master's address)
 	- If it receives any acknowledgement, mark key-value as commit and send it to predecessor
 Master will ping nodes in chain every x seconds to detect failure
 
-
+####
+For now, I'm not keeping connections alive,
+later lets see if we can keep connections alive
 
 Discussion:
 	- New node to be added: Head or Tail

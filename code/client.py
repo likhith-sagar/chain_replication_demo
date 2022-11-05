@@ -2,6 +2,7 @@ import rpyc
 from rpyc.utils.server import ThreadedServer
 from threading import Thread
 import utils
+import pickle
 
 masterPort = 5400
 myPort = utils.getFreeTcpPort()
@@ -57,10 +58,12 @@ class ClientService(rpyc.Service):
     def exposed_updateHead(self, headAddress):
         global head
         head = headAddress
+        # print(f'head updated to {headAddress}')
     
     def exposed_updateTail(self, tailAddress):
         global tail
         tail = tailAddress
+        # print(f'tail updated to {tailAddress}')
     
 if __name__ == "__main__":
     server = ThreadedServer(ClientService, port=myPort)

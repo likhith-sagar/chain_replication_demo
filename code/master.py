@@ -112,8 +112,7 @@ def handleFailure():
             for client in set(clients):
                 try:
                     con = rpyc.connect('localhost', clients[client])
-                    async_updateHead = rpyc.async_(con.root.updateHead)
-                    async_updateHead(headPort)
+                    con.root.updateHead(headPort)
                     con.close()
                 except:
                     clients.pop(client)
@@ -123,8 +122,7 @@ def handleFailure():
             for client in set(clients):
                 try:
                     con = rpyc.connect('localhost', clients[client])
-                    async_updateTail = rpyc.async_(con.root.updateTail)
-                    async_updateTail(tailPort)
+                    con.root.updateTail(tailPort)
                     con.close()
                 except:
                     clients.pop(client)
@@ -156,14 +154,13 @@ class MasterService(rpyc.Service):
         prevNodeId = nodes[-1] if len(nodes) > 0 else None
         nodeDetails[id] = [address, prevNodeId, None]
         nodes.append(id)
-        if prevNodeId:
-            nodeDetails[prevNodeId][2] = id
-
+        print(f'Registered node {id} @ {address}')
         if prevNodeId != None:
+            nodeDetails[prevNodeId][2] = id
             #inform the new node about its prev node
             try:
                 con = rpyc.connect('localhost', address)
-                con.root.updatePredecessor(nodeDetails[prevNodeId][0])
+                con.root.updatePredecessor(nodeDetails[prevNodeId][0], True)
                 con.close()
             except Exception as e:
                 print(e)
@@ -177,8 +174,18 @@ class MasterService(rpyc.Service):
             except Exception as e:
                 print(e)
                 print(f'Failed to connect {prevNodeId} @ {nodeDetails[prevNodeId][0]}')
-        
-        print(f'Registered node {id} @ {address}')
+            
+            #inform clients
+            if len(clients):
+                for client in set(clients):
+                    try:
+                        con = rpyc.connect('localhost', clients[client])
+                        con.root.updateTail(address)
+                        con.close()
+                    except:
+                        clients.pop(client)
+                print('Updated clients with new tail')
+
         
 if __name__ == "__main__":
     server = ThreadedServer(MasterService, port=myPort)

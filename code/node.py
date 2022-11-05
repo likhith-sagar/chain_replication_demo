@@ -79,10 +79,25 @@ class NodeService(rpyc.Service):
                 print(f'Failed to connect to {address}')
             #to be continued
     
-    def exposed_updatePredecessor(self, address):
+    def exposed_updatePredecessor(self, address, copy=False):
+        global keyValues, lastProcessed, nextReqId, lastAcknowledged
         peers[0] = address
         print(f'Predecessor updated to {address}')
+        if copy and address != None:
+            try:
+                con = rpyc.connect('localhost', address)
+                data = con.root.copyData()
+                keyValsBin, lastProcessed, nextReqId, lastAcknowledged = pickle.loads(data)
+                keyValues = pickle.loads(keyValsBin)
+                con.close()
+                print("Data copied successfully")
+            except Exception as e:
+                print(e)
+                print("Failed to copy Data")
             
+    def exposed_copyData(self):
+        keyValsBin = pickle.dumps(keyValues)
+        return pickle.dumps([keyValsBin, lastProcessed, nextReqId, lastAcknowledged])
 
     def exposed_execute(self, queryType, key, value=None):
         '''

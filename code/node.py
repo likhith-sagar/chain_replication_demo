@@ -168,10 +168,8 @@ class NodeService(rpyc.Service):
         # for i in range(100):
         #     print(f"{i} req called")
         #     print(request, lastAcknowledged)
-        print('hola')
         request = pickle.loads(request)
         if request[0] <= lastAcknowledged:
-            print('t1')
             #request already processed and acknowledged
             try:
                 con = rpyc.connect('localhost', peers[0])

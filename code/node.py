@@ -1,9 +1,9 @@
 import rpyc
 from rpyc.utils.server import ThreadedServer
-import pickle
 import utils
 from threading import Thread
 from time import sleep
+import pickle
 
 masterPort = 5400
 myId = utils.generateId()
@@ -67,14 +67,17 @@ class NodeService(rpyc.Service):
 
         #having ref, because pending list gets altered by acknowledge method
         pendingReqs = pending
-        try:
-            con = rpyc.connect('localhost', peers[1])
-            for req in pendingReqs:
-                con.root.request(req)
-            con.close()
-        except:
-            print(f'Failed to connect to {address}')
-        #to be continued
+        if len(pendingReqs):
+            try:
+                con = rpyc.connect('localhost', peers[1])
+                for req in pendingReqs:
+                    con.root.request(pickle.dumps(req))
+                con.close()
+                print('Successfully forwarded pending requests')
+            except Exception as e:
+                print(e)
+                print(f'Failed to connect to {address}')
+            #to be continued
     
     def exposed_updatePredecessor(self, address):
         peers[0] = address
@@ -87,7 +90,7 @@ class NodeService(rpyc.Service):
         update key value storage
         pass the query to next node (figuring out how (should clarify about logs first))
         '''
-
+        global temp, con
         if queryType == 'read':
             if key  in keyValues:
                 return keyValues[key]
@@ -104,15 +107,18 @@ class NodeService(rpyc.Service):
 
             try:
                 con = rpyc.connect('localhost', peers[1])
-                con.root.request(request)
-                con.close()
+                async_req = rpyc.async_(con.root.request)
+                async_req(pickle.dumps(request))
+                # con.root.request(request)
+                # con.close()
+                print(f'Forwarded request {request[0]}')
             except Exception as e:
                 print(e)
                 print(f'Failed to forward request {request[0]}')
         #to be completed
     
     def exposed_acknowledge(self, reqId):
-        global pending
+        global pending, lastAcknowledged
         if reqId <= lastAcknowledged:
             return #ignore
         
@@ -123,17 +129,19 @@ class NodeService(rpyc.Service):
             i+=1
         pending = pending[i+1:]
         lastAcknowledged = reqId
+        print(f"Acknowledge received {reqId}")
         
         #if no predecessor, I'm the head
         if peers[0] == None:
             return
-
         try:
             con = rpyc.connect('localhost', peers[0])
-            con.root.acknowledge(reqId)
+            async_ack = rpyc.async_(con.root.acknowledge)
+            async_ack(reqId)
             con.close()
+            print(f'Acknowledge passed {reqId}')
         except:
-            print(f'Failed to acknowledge {reqId}')
+            print(f'Failed to pass acknowledge {reqId}')
 
     #helper
     def processRequest(self, request):
@@ -146,47 +154,70 @@ class NodeService(rpyc.Service):
             keyValues[key] = value
         lastProcessed = request[0]
         nextReqId = request[0]+1
-
         #If I'm the tail, there's no pending req
         if peers[1] != None:
             pending.append(request)
+        print(f'Processed request {request[0]}')
     
     def exposed_request(self, request):
         '''
         request: [redId, key, value]
         value == None => delete the key
         '''
+        global lastAcknowledged
+        # for i in range(100):
+        #     print(f"{i} req called")
+        #     print(request, lastAcknowledged)
+        print('hola')
+        request = pickle.loads(request)
         if request[0] <= lastAcknowledged:
+            print('t1')
             #request already processed and acknowledged
             try:
                 con = rpyc.connect('localhost', peers[0])
-                con.root.acknowlegde(lastAcknowledged)
+                async_ack = rpyc.async_(con.root.acknowledge)
+                async_ack(lastAcknowledged)
                 con.close()
-            except:
+                print(f'Acknowledged {lastAcknowledged}')
+            except Exception as e:
+                print(e)
                 print(f'Failed to acknowledge {lastAcknowledged}')
             return
-
         if request[0] <= lastProcessed:
             #request already processed but not acknowledged
             return #no necessary actions required
         
         self.processRequest(request)
-
         #if no successor, I'm the tail
         if peers[1] == None:
-            return
-
-        try:
-            con = rpyc.connect('localhost', peers[1])
-            con.root.request(request)
-            con.close()
-        except:
-            print(f"Failed to forward request {request[0]}")
+            try:
+                con = rpyc.connect('localhost', peers[0])
+                async_ack = rpyc.async_(con.root.acknowledge)
+                async_ack(request[0])
+                con.close()
+                print(f'Acknowledged {request[0]}')
+            except Exception as e:
+                print(e)
+                print(f"Failed to acknowledge {request[0]}")
+            lastAcknowledged = request[0]
+        else:
+            try:
+                con = rpyc.connect('localhost', peers[1])
+                async_req = rpyc.async_(con.root.request)
+                async_req(pickle.dumps(request))
+                con.close()
+                print(f'Forwarded request {request[0]}')
+            except Exception as e:
+                print(e)
+                print(f"Failed to forward request {request[0]}")
+    
+    def exposed_ping(self):
+        return myId
        
 if __name__ == "__main__":
     server = ThreadedServer(NodeService, port=myPort)
     print(f'Node {myId} started @ {myPort}')
-    t = Thread(target=register, args=[myId, myPort, masterPort])
+    t = Thread(target=register, args=[myId, myPort, masterPort], daemon=True)
     t.start()
     server.start()
  
